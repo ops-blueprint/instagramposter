@@ -1,0 +1,56 @@
+name: Auto-post to Instagram
+
+# Instagram's Content Publishing API has no native scheduled_publish_time,
+# so this runs live at trigger time -- expect GitHub Actions cron's usual
+# "best-effort, can drift by hours" timing.
+#
+# Times are IST (UTC+5:30):
+#   9:00 AM IST -> 03:30 UTC
+#   9:00 PM IST -> 15:30 UTC
+on:
+  schedule:
+    - cron: "30 3 * * *"
+    - cron: "30 15 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate and post to Instagram
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: python3 auto_post_instagram.py
+
+      - name: Commit updated Instagram dedupe log
+        run: |
+          git add content_pipeline/used_facts_instagram.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update Instagram dedupe log [skip ci]"
+          for i in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected (attempt $i) -- retrying..."
+            sleep $((RANDOM % 10 + 5))
+            git pull --rebase origin main
+          done
+          echo "Failed to push after 5 attempts."
+          exit 1
