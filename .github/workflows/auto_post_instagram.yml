@@ -1,26 +1,13 @@
 name: Auto-post to Instagram
 
-# Instagram's Content Publishing API has no native scheduled_publish_time,
-# so this runs live at trigger time -- expect GitHub Actions cron's usual
-# "best-effort, can drift by hours" timing.
-#
-# 7x/day, spread across the day. Times are IST (UTC+5:30):
-#   6:00 AM IST  -> 00:30 UTC
-#   9:00 AM IST  -> 03:30 UTC
-#   12:00 PM IST -> 06:30 UTC
-#   3:00 PM IST  -> 09:30 UTC
-#   6:00 PM IST  -> 12:30 UTC
-#   9:00 PM IST  -> 15:30 UTC
-#   11:00 PM IST -> 17:30 UTC
+# Instagram's Content Publishing API has no native scheduled_publish_time.
+# GitHub's own `schedule:` trigger was tried first but confirmed unreliable
+# for 7x/day -- it doesn't just delay, it silently DROPS a chunk of triggers
+# under high frequency (verified: ~9.5hr gap where a slot never fired at
+# all). So this is now triggered externally via cron-job.org calling the
+# GitHub API's workflow_dispatch endpoint, which doesn't have that drop
+# behavior -- it's treated like a manual/API run, not a best-effort cron tick.
 on:
-  schedule:
-    - cron: "30 0 * * *"
-    - cron: "30 3 * * *"
-    - cron: "30 6 * * *"
-    - cron: "30 9 * * *"
-    - cron: "30 12 * * *"
-    - cron: "30 15 * * *"
-    - cron: "30 17 * * *"
   workflow_dispatch: {}
 
 jobs:
