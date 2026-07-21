@@ -1,15 +1,17 @@
 name: Auto-post to Instagram
-
 # Instagram's Content Publishing API has no native scheduled_publish_time.
-# GitHub's own `schedule:` trigger was tried first but confirmed unreliable
-# for 7x/day -- it doesn't just delay, it silently DROPS a chunk of triggers
-# under high frequency (verified: ~9.5hr gap where a slot never fired at
-# all). So this is now triggered externally via cron-job.org calling the
-# GitHub API's workflow_dispatch endpoint, which doesn't have that drop
-# behavior -- it's treated like a manual/API run, not a best-effort cron tick.
+# Schedule times are IST (UTC+5:30) expressed in UTC, since GitHub cron is UTC.
+# NOTE: GitHub's `schedule:` trigger previously dropped slots at 7x/day. At
+# 5x/day the risk is lower but not zero -- cron-job.org -> workflow_dispatch
+# remains the reliable path and is kept enabled below.
 on:
   workflow_dispatch: {}
-
+  schedule:
+    - cron: "30 0 * * *"    # 06:00 IST
+    - cron: "30 3 * * *"    # 09:00 IST
+    - cron: "30 6 * * *"    # 12:00 IST
+    - cron: "30 9 * * *"    # 15:00 IST
+    - cron: "30 12 * * *"   # 18:00 IST
 jobs:
   post:
     runs-on: ubuntu-latest
@@ -17,25 +19,20 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Generate and post to Instagram
         env:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
         run: python3 auto_post_instagram.py
-
       - name: Commit updated Instagram dedupe log
         run: |
           git add content_pipeline/used_facts_instagram.json
